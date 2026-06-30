@@ -1,3 +1,5 @@
+const path = require("path");
+
 task("accounts", "Prints the list of QRL accounts", async (_, { network }) => {
   const accounts = await network.provider.send("qrl_accounts");
 
@@ -15,7 +17,7 @@ module.exports = {
   hyperion: {
     compilerPath:
       process.env.HYPERION_HYPC_PATH ||
-      "/opt/qrl/example-hyperion/build/hypc/hypc",
+      path.resolve(__dirname, "../hyperion/build/hypc/hypc"),
   },
   networks: {
     qrlPrivate: {
@@ -26,7 +28,8 @@ module.exports = {
       type: "qrl-local",
       chainId: 1,
       qrlJsMonorepoPath:
-        process.env.QRLJS_MONOREPO_PATH || "/opt/qrl/example-qrljs-monorepo",
+        process.env.QRLJS_MONOREPO_PATH ||
+        path.resolve(__dirname, "../../qrljs-monorepo"),
       from: localAccountAddress,
       accounts: [
         {
