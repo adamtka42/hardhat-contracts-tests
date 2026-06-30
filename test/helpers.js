@@ -64,6 +64,72 @@ async function deployQrlNFT(options = {}) {
   return { from, deployment, contract };
 }
 
+async function deploySQRCTF1Mock(options = {}) {
+  const from = options.from || (await getDefaultAccount());
+  const SQRCTF1Mock = await hre.qrl.getContractFactory("SQRCTF1Mock");
+  const deployment = await SQRCTF1Mock.deploy(
+    { from },
+    [options.name || "Mock Fungible", options.symbol || "MOCK"],
+    WAIT_OPTIONS
+  );
+  const contract = await hre.qrl.getContractAt(
+    "SQRCTF1Mock",
+    deployment.address
+  );
+
+  return { from, deployment, contract };
+}
+
+async function deploySQRCTN1Mock(options = {}) {
+  const from = options.from || (await getDefaultAccount());
+  const SQRCTN1Mock = await hre.qrl.getContractFactory("SQRCTN1Mock");
+  const deployment = await SQRCTN1Mock.deploy(
+    { from },
+    [options.name || "Mock NFT", options.symbol || "MNFT"],
+    WAIT_OPTIONS
+  );
+  const contract = await hre.qrl.getContractAt(
+    "SQRCTN1Mock",
+    deployment.address
+  );
+
+  return { from, deployment, contract };
+}
+
+async function deploySQRCTB1Mock(options = {}) {
+  const from = options.from || (await getDefaultAccount());
+  const SQRCTB1Mock = await hre.qrl.getContractFactory("SQRCTB1Mock");
+  const deployment = await SQRCTB1Mock.deploy(
+    { from },
+    [options.uri || "ipfs://multi/{id}.json"],
+    WAIT_OPTIONS
+  );
+  const contract = await hre.qrl.getContractAt(
+    "SQRCTB1Mock",
+    deployment.address
+  );
+
+  return { from, deployment, contract };
+}
+
+async function deploySQRCTB1ReceiverMock(options = {}) {
+  const from = options.from || (await getDefaultAccount());
+  const SQRCTB1ReceiverMock = await hre.qrl.getContractFactory(
+    "SQRCTB1ReceiverMock"
+  );
+  const deployment = await SQRCTB1ReceiverMock.deploy(
+    { from },
+    "0x",
+    WAIT_OPTIONS
+  );
+  const contract = await hre.qrl.getContractAt(
+    "SQRCTB1ReceiverMock",
+    deployment.address
+  );
+
+  return { from, deployment, contract };
+}
+
 async function expectRejects(action, expectedMessage) {
   try {
     await action();
@@ -87,6 +153,10 @@ module.exports = {
   WAIT_OPTIONS,
   deployQRL20,
   deployQrlNFT,
+  deploySQRCTB1Mock,
+  deploySQRCTB1ReceiverMock,
+  deploySQRCTF1Mock,
+  deploySQRCTN1Mock,
   expectRejects,
   getDefaultAccount,
   wait,

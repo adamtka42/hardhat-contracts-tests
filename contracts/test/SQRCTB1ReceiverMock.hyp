@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: MIT
+pragma hyperion >=0.0;
+
+import {ISQRCTB1Receiver} from "@theqrl/qrl-contracts/token/SQRCTB1/ISQRCTB1Receiver.hyp";
+
+contract SQRCTB1ReceiverMock is ISQRCTB1Receiver {
+    function supportsInterface(bytes4 interfaceId) public pure returns (bool) {
+        return interfaceId == type(ISQRCTB1Receiver).interfaceId;
+    }
+
+    function onSQRCTB1Received(
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return ISQRCTB1Receiver.onSQRCTB1Received.selector;
+    }
+
+    function onSQRCTB1BatchReceived(
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return ISQRCTB1Receiver.onSQRCTB1BatchReceived.selector;
+    }
+}

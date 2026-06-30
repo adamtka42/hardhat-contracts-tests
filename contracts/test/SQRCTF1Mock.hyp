@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: MIT
+pragma hyperion >=0.0;
+
+import {SQRCTF1} from "@theqrl/qrl-contracts/token/SQRCTF1/SQRCTF1.hyp";
+
+contract SQRCTF1Mock is SQRCTF1 {
+    constructor(string memory name_, string memory symbol_) SQRCTF1(name_, symbol_) {}
+
+    function mint(address account, uint256 value) public {
+        _mint(account, value);
+    }
+
+    function burn(address account, uint256 value) public {
+        _burn(account, value);
+    }
+}
