@@ -1,0 +1,157 @@
+// SPDX-License-Identifier: MIT
+pragma hyperion >=0.0;
+
+/**
+ * @title PublicResolver - QRL Name Service Public Resolver
+ * @notice Resolves QRNS names to addresses, public keys, content hashes, and text records
+ * @dev Compatible with QRL's QRVM. Implements interfaces expected by web3-qrl-qrns library.
+ */
+
+interface IQRNSRegistry {
+    function owner(bytes32 node) external view returns (address);
+}
+
+contract PublicResolver {
+    // ============ State Variables ============
+
+    IQRNSRegistry private qrns;
+
+    // addr(bytes32) -> address (coin type 60 / default)
+    mapping(bytes32 => address) private _addresses;
+    // addr(bytes32, uint256 coinType) -> bytes
+    mapping(bytes32 => mapping(uint256 => bytes)) private _multiAddresses;
+    // pubkey(bytes32) -> (x, y)
+    mapping(bytes32 => bytes32) private _pubkeyX;
+    mapping(bytes32 => bytes32) private _pubkeyY;
+    // contenthash(bytes32) -> bytes
+    mapping(bytes32 => bytes) private _contenthashes;
+    // text(bytes32, string key) -> string
+    mapping(bytes32 => mapping(string => string)) private _texts;
+    // name(bytes32) -> string (reverse record)
+    mapping(bytes32 => string) private _names;
+    // operator approvals
+    mapping(address => mapping(address => bool)) private _operatorApprovals;
+
+    // ============ Events ============
+
+    event AddrChanged(bytes32 indexed node, address a);
+    event AddressChanged(bytes32 indexed node, uint256 coinType, bytes newAddress);
+    event PubkeyChanged(bytes32 indexed node, bytes32 x, bytes32 y);
+    event ContenthashChanged(bytes32 indexed node, bytes hash);
+    event TextChanged(bytes32 indexed node, string indexed indexedKey, string key);
+    event NameChanged(bytes32 indexed node, string name);
+    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+
+    // ============ Modifiers ============
+
+    modifier authorised(bytes32 node) {
+        address nodeOwner = qrns.owner(node);
+        require(
+            msg.sender == nodeOwner || _operatorApprovals[nodeOwner][msg.sender],
+            "Not authorised"
+        );
+        _;
+    }
+
+    // ============ Constructor ============
+
+    constructor(address _qrns) {
+        qrns = IQRNSRegistry(_qrns);
+    }
+
+    // ============ ERC-165: Interface Detection ============
+
+    function supportsInterface(bytes4 interfaceID) public pure returns (bool) {
+        return
+            interfaceID == 0x01ffc9a7 || // ERC-165
+            interfaceID == 0x3b3b57de || // addr(bytes32)
+            interfaceID == 0xc8690233 || // pubkey
+            interfaceID == 0xbc1c58d1 || // contenthash
+            interfaceID == 0x59d1d43c || // text
+            interfaceID == 0x691f3431;   // name
+    }
+
+    // ============ View Functions ============
+
+    function addr(bytes32 node) public view returns (address payable) {
+        return payable(_addresses[node]);
+    }
+
+    function addr(bytes32 node, uint256 coinType) public view returns (bytes memory) {
+        if (coinType == 60) {
+            // Return default address as bytes for coin type 60
+            address a = _addresses[node];
+            return abi.encodePacked(a);
+        }
+        return _multiAddresses[node][coinType];
+    }
+
+    function pubkey(bytes32 node) public view returns (bytes32 x, bytes32 y) {
+        return (_pubkeyX[node], _pubkeyY[node]);
+    }
+
+    function contenthash(bytes32 node) public view returns (bytes memory) {
+        return _contenthashes[node];
+    }
+
+    function text(bytes32 node, string memory key) public view returns (string memory) {
+        return _texts[node][key];
+    }
+
+    function name(bytes32 node) public view returns (string memory) {
+        return _names[node];
+    }
+
+    function isApprovedForAll(address account, address operator) public view returns (bool) {
+        return _operatorApprovals[account][operator];
+    }
+
+    // ============ Write Functions ============
+
+    function setAddr(bytes32 node, address a) public authorised(node) {
+        _addresses[node] = a;
+        emit AddrChanged(node, a);
+        emit AddressChanged(node, 60, abi.encodePacked(a));
+    }
+
+    function setAddr(bytes32 node, uint256 coinType, bytes memory a) public authorised(node) {
+        if (coinType == 60) {
+            address addrValue;
+            if (a.length >= 20) {
+                assembly {
+                    addrValue := mload(add(a, 20))
+                }
+            }
+            _addresses[node] = addrValue;
+            emit AddrChanged(node, addrValue);
+        }
+        _multiAddresses[node][coinType] = a;
+        emit AddressChanged(node, coinType, a);
+    }
+
+    function setPubkey(bytes32 node, bytes32 x, bytes32 y) public authorised(node) {
+        _pubkeyX[node] = x;
+        _pubkeyY[node] = y;
+        emit PubkeyChanged(node, x, y);
+    }
+
+    function setContenthash(bytes32 node, bytes memory hash) public authorised(node) {
+        _contenthashes[node] = hash;
+        emit ContenthashChanged(node, hash);
+    }
+
+    function setText(bytes32 node, string memory key, string memory value) public authorised(node) {
+        _texts[node][key] = value;
+        emit TextChanged(node, key, key);
+    }
+
+    function setName(bytes32 node, string memory newName) public authorised(node) {
+        _names[node] = newName;
+        emit NameChanged(node, newName);
+    }
+
+    function setApprovalForAll(address operator, bool approved) public {
+        _operatorApprovals[msg.sender][operator] = approved;
+        emit ApprovalForAll(msg.sender, operator, approved);
+    }
+}

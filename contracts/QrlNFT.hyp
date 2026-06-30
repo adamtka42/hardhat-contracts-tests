@@ -1,0 +1,227 @@
+// SPDX-License-Identifier: MIT
+pragma hyperion >=0.0;
+
+import {SQRCTN1} from "@theqrl/qrl-contracts/token/SQRCTN1/SQRCTN1.hyp";
+import {SQRCTN1URIStorage} from "@theqrl/qrl-contracts/token/SQRCTN1/extensions/SQRCTN1URIStorage.hyp";
+import {SQRCTN1Enumerable} from "@theqrl/qrl-contracts/token/SQRCTN1/extensions/SQRCTN1Enumerable.hyp";
+
+/**
+ * @title QrlNFT
+ * @notice ZRC-721 NFT for the QRL post-quantum blockchain.
+ * @dev Inherits {SQRCTN1} (ZRC-721 base) and {SQRCTN1URIStorage}
+ *      (per-token URI extension) from the qrl-contracts library. Adds
+ *      inline:
+ *        - Ownable (mint / burn / setBaseURI / setRoyalty are admin-gated)
+ *        - Auto-incrementing token id counter + max supply
+ *        - Pausable (blocks mint / burn / transfer)
+ *        - ZIP-2981 / ERC-2981 single-recipient royalty (basis points)
+ *      until the canonical equivalents land in qrl-contracts under
+ *      access/Ownable.hyp and token/SQRCTN1/extensions/Pausable + Royalty.
+ */
+contract QrlNFT is SQRCTN1, SQRCTN1URIStorage, SQRCTN1Enumerable {
+    // ============ State ============
+
+    address private _owner;
+    string private _baseTokenURI;
+    bool public paused;
+
+    uint256 private _tokenIdCounter;
+    uint256 public maxSupply; // 0 = unlimited
+
+    // ZIP-2981 / ERC-2981 single-recipient royalty.
+    address private _royaltyReceiver;
+    uint256 private _royaltyBps;
+
+    // ============ Events ============
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event Paused(address indexed account);
+    event Unpaused(address indexed account);
+    event RoyaltyUpdated(address indexed receiver, uint256 bps);
+
+    // ============ Errors ============
+
+    error NotAuthorized();
+    error ContractPaused();
+    error MaxSupplyExceeded();
+    error InvalidNewOwner();
+    error InvalidRoyalty();
+
+    // ============ Modifiers ============
+
+    modifier onlyOwner() {
+        if (msg.sender != _owner) revert NotAuthorized();
+        _;
+    }
+
+    // ============ Constructor ============
+
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        string memory baseURI_,
+        uint256 maxSupply_,
+        address royaltyReceiver_,
+        uint256 royaltyBps_
+    ) SQRCTN1(name_, symbol_) {
+        if (royaltyBps_ > 10_000) revert InvalidRoyalty();
+        _owner = msg.sender;
+        _baseTokenURI = baseURI_;
+        maxSupply = maxSupply_;
+        _royaltyReceiver = royaltyReceiver_;
+        _royaltyBps = royaltyBps_;
+        emit OwnershipTransferred(address(0), msg.sender);
+    }
+
+    // ============ Base URI override ============
+
+    function _baseURI() internal view virtual override returns (string memory) {
+        return _baseTokenURI;
+    }
+
+    // tokenURI is provided by SQRCTN1URIStorage (per-token override of
+    // SQRCTN1's base+id concatenation). Requires the override list:
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        virtual
+        override(SQRCTN1, SQRCTN1URIStorage)
+        returns (string memory)
+    {
+        return SQRCTN1URIStorage.tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(SQRCTN1, SQRCTN1URIStorage, SQRCTN1Enumerable)
+        returns (bool)
+    {
+        return
+            interfaceId == 0x2a55205a || // ZIP-2981 royalty
+            super.supportsInterface(interfaceId);
+    }
+
+    // ============ Pause hook on _update ============
+
+    /**
+     * @dev Block all mint / burn / transfer while paused. Owner-side
+     *      pause/unpause aren't gated here, so they can always run.
+     */
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        virtual
+        override(SQRCTN1, SQRCTN1Enumerable)
+        returns (address)
+    {
+        if (paused) revert ContractPaused();
+        return super._update(to, tokenId, auth);
+    }
+
+    /**
+     * @dev SQRCTN1Enumerable requires _increaseBalance to be overridden in
+     *      derived contracts that bring in additional storage state. We keep
+     *      the default behaviour from the Enumerable extension (revert on
+     *      non-zero batch, otherwise call super) — the explicit override is
+     *      only needed because solc requires it once the inheritance graph
+     *      has a diamond.
+     */
+    function _increaseBalance(address account, uint128 amount)
+        internal
+        virtual
+        override(SQRCTN1, SQRCTN1Enumerable)
+    {
+        super._increaseBalance(account, amount);
+    }
+
+    // ============ Minting ============
+
+    function mint(address to, string memory uri) public onlyOwner returns (uint256) {
+        uint256 nextId = _tokenIdCounter;
+        if (maxSupply > 0 && nextId >= maxSupply) revert MaxSupplyExceeded();
+        _tokenIdCounter = nextId + 1;
+        _safeMint(to, nextId);
+        if (bytes(uri).length > 0) {
+            _setTokenURI(nextId, uri);
+        }
+        return nextId;
+    }
+
+    function mintBatch(address to, string[] memory uris) public onlyOwner returns (uint256) {
+        uint256 startId = _tokenIdCounter;
+        uint256 newCounter = startId + uris.length;
+        if (maxSupply > 0 && newCounter > maxSupply) revert MaxSupplyExceeded();
+        _tokenIdCounter = newCounter;
+        for (uint256 i = 0; i < uris.length; i++) {
+            uint256 id = startId + i;
+            _safeMint(to, id);
+            if (bytes(uris[i]).length > 0) {
+                _setTokenURI(id, uris[i]);
+            }
+        }
+        return startId;
+    }
+
+    // ============ Burning ============
+
+    function burn(uint256 tokenId) public {
+        // SQRCTN1 already authorizes via _update(0, tokenId, msg.sender).
+        // _checkAuthorized lives in the base; using super-style burn keeps
+        // behaviour identical to OZ ERC721Burnable.
+        address previousOwner = _update(address(0), tokenId, msg.sender);
+        if (previousOwner == address(0)) revert NotAuthorized();
+    }
+
+    // ============ ZIP-2981 royalty ============
+
+    function royaltyInfo(uint256, uint256 salePrice)
+        public
+        view
+        returns (address, uint256)
+    {
+        return (_royaltyReceiver, (salePrice * _royaltyBps) / 10_000);
+    }
+
+    function setRoyalty(address receiver, uint256 bps) public onlyOwner {
+        if (bps > 10_000) revert InvalidRoyalty();
+        _royaltyReceiver = receiver;
+        _royaltyBps = bps;
+        emit RoyaltyUpdated(receiver, bps);
+    }
+
+    // ============ Admin ============
+
+    function owner() public view returns (address) {
+        return _owner;
+    }
+
+    function transferOwnership(address newOwner) public onlyOwner {
+        if (newOwner == address(0)) revert InvalidNewOwner();
+        address previous = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(previous, newOwner);
+    }
+
+    function pause() public onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() public onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+
+    function setBaseURI(string memory newBaseURI) public onlyOwner {
+        _baseTokenURI = newBaseURI;
+    }
+
+    function setTokenURI(uint256 tokenId, string memory uri) public onlyOwner {
+        _setTokenURI(tokenId, uri);
+    }
+
+    function totalMinted() public view returns (uint256) {
+        return _tokenIdCounter;
+    }
+}

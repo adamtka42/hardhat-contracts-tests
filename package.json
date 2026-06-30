@@ -1,0 +1,23 @@
+{
+  "name": "hardhat-contracts-tests",
+  "private": true,
+  "scripts": {
+    "hardhat": "node node_modules/@theqrl/hardhat/internal/cli/cli.js",
+    "clean": "rm -rf artifacts cache",
+    "compile": "npm run hardhat -- compile",
+    "accounts:private": "npm run hardhat -- accounts --network qrlPrivate",
+    "accounts:local": "npm run hardhat -- accounts --network qrlLocal",
+    "deploy:qrl20:private": "npm run hardhat -- run scripts/deploy-qrl20.js --network qrlPrivate",
+    "deploy:qrl20:local": "npm run hardhat -- run scripts/deploy-qrl20.js --network qrlLocal",
+    "deploy:nft:private": "npm run hardhat -- run scripts/deploy-nft.js --network qrlPrivate",
+    "deploy:nft:local": "npm run hardhat -- run scripts/deploy-nft.js --network qrlLocal",
+    "deploy:all:private": "npm run hardhat -- run scripts/deploy-all.js --network qrlPrivate",
+    "deploy:all:local": "npm run hardhat -- run scripts/deploy-all.js --network qrlLocal",
+    "token:private": "npm run hardhat -- run scripts/token-flow.js --network qrlPrivate",
+    "token:local": "npm run hardhat -- run scripts/token-flow.js --network qrlLocal",
+    "test:private": "npm run hardhat -- test --network qrlPrivate",
+    "test:local": "npm run hardhat -- test --network qrlLocal",
+    "deploy:qrns:private": "npm run hardhat -- run scripts/deploy-qrns.js --network qrlPrivate",
+    "deploy:qrns:local": "npm run hardhat -- run scripts/deploy-qrns.js --network qrlLocal"
+  }
+}

@@ -1,0 +1,157 @@
+// SPDX-License-Identifier: MIT
+pragma hyperion >=0.0;
+
+import {SQRCTF1} from "@theqrl/qrl-contracts/token/SQRCTF1/SQRCTF1.hyp";
+
+/**
+ * @title QRL20
+ * @notice ZRC-20 fungible token for the QRL post-quantum blockchain.
+ * @dev Inherits the canonical {SQRCTF1} base from the qrl-contracts library
+ *      for transfer / allowance / balance / events. Adds an inline
+ *      Ownable + Pausable + Burnable + max-supply mixin because the
+ *      upstream library doesn't ship those extensions yet (TODO: move
+ *      them upstream once the canonical equivalents land in qrl-contracts
+ *      access/ and token/SQRCTF1/extensions/).
+ *
+ *      The constructor accepts a custom `decimals_` value that overrides
+ *      the SQRCTF1 default of 18 — useful for tokens that pin their unit
+ *      to a different sub-Quanta scale.
+ */
+contract QRL20 is SQRCTF1 {
+    // ============ State ============
+
+    uint8 private immutable _decimals;
+    address private _owner;
+    bool public paused;
+    uint256 public maxSupply; // 0 = unlimited
+
+    // ============ Events ============
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event Paused(address indexed account);
+    event Unpaused(address indexed account);
+
+    // ============ Errors ============
+
+    error NotAuthorized();
+    error ContractPaused();
+    error MaxSupplyExceeded();
+    error InvalidNewOwner();
+
+    // ============ Modifiers ============
+
+    modifier onlyOwner() {
+        if (msg.sender != _owner) revert NotAuthorized();
+        _;
+    }
+
+    modifier whenNotPaused() {
+        if (paused) revert ContractPaused();
+        _;
+    }
+
+    // ============ Constructor ============
+
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        uint8 decimals_,
+        uint256 initialSupply_,
+        uint256 maxSupply_
+    ) SQRCTF1(name_, symbol_) {
+        _decimals = decimals_;
+        _owner = msg.sender;
+        maxSupply = maxSupply_;
+        if (initialSupply_ > 0) {
+            if (maxSupply_ > 0 && initialSupply_ > maxSupply_) revert MaxSupplyExceeded();
+            _mint(msg.sender, initialSupply_);
+        }
+        emit OwnershipTransferred(address(0), msg.sender);
+    }
+
+    // ============ ZRC-165 ============
+
+    function supportsInterface(bytes4 interfaceId) public pure returns (bool) {
+        return
+            interfaceId == 0x01ffc9a7 || // ZRC-165
+            interfaceId == 0x36372b07; // ZRC-20
+    }
+
+    // ============ Decimals override ============
+
+    function decimals() public view virtual override returns (uint8) {
+        return _decimals;
+    }
+
+    // ============ Pause hook on _update ============
+
+    /**
+     * @dev Block all transfers / mints / burns while the contract is paused.
+     *      Owner-side pause/unpause are not gated on this hook so they can
+     *      always run.
+     */
+    function _update(address from, address to, uint256 value) internal virtual override {
+        if (paused) revert ContractPaused();
+        super._update(from, to, value);
+    }
+
+    // ============ Minting ============
+
+    function mint(address to, uint256 amount) public onlyOwner {
+        if (maxSupply > 0 && totalSupply() + amount > maxSupply) revert MaxSupplyExceeded();
+        _mint(to, amount);
+    }
+
+    // ============ Burning ============
+
+    function burn(uint256 amount) public {
+        _burn(msg.sender, amount);
+    }
+
+    function burnFrom(address account, uint256 amount) public {
+        _spendAllowance(account, msg.sender, amount);
+        _burn(account, amount);
+    }
+
+    // ============ Allowance helpers ============
+
+    function increaseAllowance(address spender, uint256 addedValue) public returns (bool) {
+        _approve(msg.sender, spender, allowance(msg.sender, spender) + addedValue);
+        return true;
+    }
+
+    function decreaseAllowance(address spender, uint256 subtractedValue) public returns (bool) {
+        uint256 current = allowance(msg.sender, spender);
+        if (current < subtractedValue) revert ContractPaused(); // shouldn't happen; reuse
+        _approve(msg.sender, spender, current - subtractedValue);
+        return true;
+    }
+
+    // ============ Admin ============
+
+    function owner() public view returns (address) {
+        return _owner;
+    }
+
+    function transferOwnership(address newOwner) public onlyOwner {
+        if (newOwner == address(0)) revert InvalidNewOwner();
+        address previous = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(previous, newOwner);
+    }
+
+    function pause() public onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() public onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+
+    function setMaxSupply(uint256 newMaxSupply) public onlyOwner {
+        if (newMaxSupply > 0 && newMaxSupply < totalSupply()) revert MaxSupplyExceeded();
+        maxSupply = newMaxSupply;
+    }
+}
