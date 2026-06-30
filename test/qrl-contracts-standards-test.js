@@ -58,6 +58,43 @@ describe("@theqrl/qrl-contracts standards", function () {
       assert.strictEqual(totalSupply.toString(10), "975");
     });
 
+    it("simulates a fungible transfer without changing balances", async function () {
+      const [beforeFrom] = await token.callStatic.balanceOf(from);
+      const [beforeRecipient] = await token.callStatic.balanceOf(RECIPIENT);
+
+      const [ok] = await token.callStatic.transfer(RECIPIENT, 10, {
+        from,
+        gas: 30000000,
+      });
+
+      const [afterFrom] = await token.callStatic.balanceOf(from);
+      const [afterRecipient] = await token.callStatic.balanceOf(RECIPIENT);
+
+      assert.strictEqual(ok, true);
+      assert.strictEqual(afterFrom.toString(10), beforeFrom.toString(10));
+      assert.strictEqual(
+        afterRecipient.toString(10),
+        beforeRecipient.toString(10)
+      );
+    });
+
+    it("simulates an approval without changing allowance", async function () {
+      const [beforeAllowance] = await token.callStatic.allowance(from, OPERATOR);
+
+      const [ok] = await token.callStatic.approve(OPERATOR, 33, {
+        from,
+        gas: 30000000,
+      });
+
+      const [afterAllowance] = await token.callStatic.allowance(from, OPERATOR);
+
+      assert.strictEqual(ok, true);
+      assert.strictEqual(
+        afterAllowance.toString(10),
+        beforeAllowance.toString(10)
+      );
+    });
+
     it("rejects transfers above balance", async function () {
       await expectRejects(() =>
         token.callStatic.transfer(RECIPIENT, "999999999999999999999999", {
@@ -112,6 +149,21 @@ describe("@theqrl/qrl-contracts standards", function () {
 
       await wait(await nft.functions.burn(1, { from, gas: 30000000 }));
       await expectRejects(() => nft.callStatic.ownerOf(1));
+    });
+
+    it("simulates an NFT transfer without changing owner", async function () {
+      await wait(await nft.functions.mint(from, 3, { from, gas: 30000000 }));
+      const [beforeOwner] = await nft.callStatic.ownerOf(3);
+
+      await nft.callStatic.transferFrom(from, RECIPIENT, 3, {
+        from,
+        gas: 30000000,
+      });
+
+      const [afterOwner] = await nft.callStatic.ownerOf(3);
+
+      assert.strictEqual(beforeOwner.toLowerCase(), from.toLowerCase());
+      assert.strictEqual(afterOwner.toLowerCase(), beforeOwner.toLowerCase());
     });
 
     it("supports operator approvals", async function () {
@@ -268,6 +320,38 @@ describe("@theqrl/qrl-contracts standards", function () {
       assert.strictEqual(balances[1].toString(10), "20");
       assert.strictEqual(balances[2].toString(10), "125");
       assert.strictEqual(balances[3].toString(10), "20");
+    });
+
+    it("simulates a batch transfer without changing balances", async function () {
+      await wait(
+        await multiToken.functions.mintBatch(from, [0], [40], {
+          from,
+          gas: 30000000,
+        })
+      );
+      const [beforeBalances] = await multiToken.callStatic.balanceOfBatch(
+        [from, RECIPIENT],
+        [0, 0]
+      );
+
+      await multiToken.callStatic.transferBatch(from, RECIPIENT, [0], [12], {
+        from,
+        gas: 30000000,
+      });
+
+      const [afterBalances] = await multiToken.callStatic.balanceOfBatch(
+        [from, RECIPIENT],
+        [0, 0]
+      );
+
+      assert.strictEqual(
+        afterBalances[0].toString(10),
+        beforeBalances[0].toString(10)
+      );
+      assert.strictEqual(
+        afterBalances[1].toString(10),
+        beforeBalances[1].toString(10)
+      );
     });
 
     it("rejects batch balance queries with mismatched lengths", async function () {

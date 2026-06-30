@@ -39,6 +39,34 @@ describe("QRL20", function () {
     assert.strictEqual(totalSupply.toString(10), "1000");
   });
 
+  it("simulates a token transfer without changing balances", async function () {
+    const beforeFrom = (await token.callStatic.balanceOf(from))[0];
+    const beforeRecipient = (await token.callStatic.balanceOf(RECIPIENT))[0];
+
+    const [ok] = await token.callStatic.transfer(RECIPIENT, 125, { from });
+
+    const afterFrom = (await token.callStatic.balanceOf(from))[0];
+    const afterRecipient = (await token.callStatic.balanceOf(RECIPIENT))[0];
+
+    assert.strictEqual(ok, true);
+    assert.strictEqual(afterFrom.toString(10), beforeFrom.toString(10));
+    assert.strictEqual(
+      afterRecipient.toString(10),
+      beforeRecipient.toString(10)
+    );
+  });
+
+  it("simulates an approval without changing allowance", async function () {
+    const [beforeAllowance] = await token.callStatic.allowance(from, RECIPIENT);
+
+    const [ok] = await token.callStatic.approve(RECIPIENT, 77, { from });
+
+    const [afterAllowance] = await token.callStatic.allowance(from, RECIPIENT);
+
+    assert.strictEqual(ok, true);
+    assert.strictEqual(afterAllowance.toString(10), beforeAllowance.toString(10));
+  });
+
   it("transfers tokens and emits a Transfer event", async function () {
     const beforeFrom = (await token.callStatic.balanceOf(from))[0];
     const beforeRecipient = (await token.callStatic.balanceOf(RECIPIENT))[0];

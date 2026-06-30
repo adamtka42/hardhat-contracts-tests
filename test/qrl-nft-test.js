@@ -52,6 +52,17 @@ describe("QrlNFT", function () {
     assert.strictEqual(totalMinted.toString(10), "1");
   });
 
+  it("simulates an NFT transfer without changing owner", async function () {
+    const [beforeOwner] = await nft.callStatic.ownerOf(0);
+
+    await nft.callStatic.transferFrom(from, RECIPIENT, 0, { from });
+
+    const [afterOwner] = await nft.callStatic.ownerOf(0);
+
+    assert.strictEqual(beforeOwner.toLowerCase(), from.toLowerCase());
+    assert.strictEqual(afterOwner.toLowerCase(), beforeOwner.toLowerCase());
+  });
+
   it("transfers a minted NFT", async function () {
     await wait(await nft.functions.transferFrom(from, RECIPIENT, 0, { from }));
     const [owner] = await nft.callStatic.ownerOf(0);

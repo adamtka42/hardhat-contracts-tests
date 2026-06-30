@@ -56,6 +56,16 @@ describe("QRNS", function () {
     assert.strictEqual(exists, true);
   });
 
+  it("simulates a registry resolver update without changing the record", async function () {
+    const [beforeResolver] = await registry.callStatic.resolver(ROOT_NODE);
+
+    await registry.callStatic.setResolver(ROOT_NODE, resolver.address, { from });
+
+    const [afterResolver] = await registry.callStatic.resolver(ROOT_NODE);
+
+    assert.strictEqual(afterResolver.toLowerCase(), beforeResolver.toLowerCase());
+  });
+
   it("stores resolver and ttl records in the registry", async function () {
     await wait(await registry.functions.setResolver(ROOT_NODE, resolver.address, { from }));
     await wait(await registry.functions.setTTL(ROOT_NODE, 3600, { from }));
