@@ -130,6 +130,22 @@ async function deploySQRCTB1ReceiverMock(options = {}) {
   return { from, deployment, contract };
 }
 
+async function deployCallContextMock(options = {}) {
+  const from = options.from || (await getDefaultAccount());
+  const CallContextMock = await hre.qrl.getContractFactory("CallContextMock");
+  const deployment = await CallContextMock.deploy(
+    { from },
+    "0x",
+    WAIT_OPTIONS
+  );
+  const contract = await hre.qrl.getContractAt(
+    "CallContextMock",
+    deployment.address
+  );
+
+  return { from, deployment, contract };
+}
+
 async function expectRejects(action, expectedMessage) {
   try {
     await action();
@@ -151,6 +167,7 @@ async function expectRejects(action, expectedMessage) {
 module.exports = {
   RECIPIENT,
   WAIT_OPTIONS,
+  deployCallContextMock,
   deployQRL20,
   deployQrlNFT,
   deploySQRCTB1Mock,
